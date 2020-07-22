@@ -1,0 +1,99 @@
+#!/bin/bash -e
+# author: g-glory-n
+# date: 2020
+
+
+
+# 检测系统基本命令是否存在。
+if [[ "$(type whiptail)" =~ "not found" ]]
+then
+	echo -e "\n\tplease install whiptail!\n"
+       	exit 1
+fi
+
+
+# 规范程序执行方式。
+exe_file_name="configure"
+if [ "$0" != "./$exe_file_name" ] && [ "$0" != "bash ./exe_file_name" ]
+then
+	printf "\n"
+	echo -e " please into source directory to execute \"./$exe_file_name\" or \"bash ./$exe_file_name\"!"
+	printf "\n"
+	exit 1
+fi
+
+# 普通用户获取 root 权限（sudo 可用时间 5 分钟）。
+if [ "$(whoami)" == "root" ] # determine whether user is root
+then
+    echo ""
+    echo -e "\033[31m\tyou have get root permission!\033[0m"
+    echo ""
+else
+    for ((i = 0; i < 4; i++)) # get root permission
+    do
+        if [ "${i}" != "3" ]
+        then
+	    PASSWD=$(whiptail --title "get root permission" --passwordbox "input your root password by three chances" 10 60 3>&1 1>&2 2>&3)
+        fi
+
+        if [ ${i} = "3" ]; then
+            whiptail --title "message" --msgbox "you have tried many times and do not get root permission, the script will exit!" 10 60
+            exit 0
+        fi
+    
+        sudo -k
+        if sudo -lS &> /dev/null << EOF
+${PASSWD}
+EOF
+        then
+            i=10
+        else
+            if [ "${i}" != "2" ]
+            then
+                whiptail --title "get root permission" --msgbox "invalid password, please input corrent password!" 10 60 
+            fi
+        fi
+    done
+    
+    echo ${PASSWD} | sudo ls > /dev/null 2>&1
+    echo ""
+    echo -e "\033[31m\tyou have get root permission!\033[0m"
+    echo ""
+
+fi
+
+
+
+# 检测运行环境。
+type apt && {
+	sudo apt install -y git wget flex bison linux-headers-$(uname -r)
+}
+
+type yum && {
+	sudo yum install -y git wget flex bison kernel-headers-$(uname -r)
+}
+
+cd /tmp/ && {
+	wget -c https://github.com/appneta/tcpreplay/releases/download/v4.3.1/tcpreplay-4.3.1.tar.xz
+	tar -Jxvf tcpreplay-4.3.1.tar.xz
+	cd tcpreplay-4.3.1
+	sudo ./configure
+	sudo make
+	sudo make install
+}
+
+cd /tmp/ && {
+	git clone https://github.com/ntop/PF_RING.git
+	cd ./PF_RING/
+	sudo make
+	sudo make install
+
+	cd ./kernel/
+	sudo make && make install && insmod ./pf.ring.ko
+}
+
+rm -rf /tmp/tcpreplay-4.3.1.tar.xz /tmp/tcpreplay-4.3.1/ /tmp/PF_RING/
+
+echo -e "\ndeploy develop_env successfully!\n"
+
+exit 0
